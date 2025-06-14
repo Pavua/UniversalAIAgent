@@ -1,6 +1,7 @@
 import SwiftUI
 import AVFoundation
 import Speech
+import Foundation
 
 /// View for voice/text prompts to generate code or projects
 struct AssistView: View {
@@ -51,7 +52,22 @@ struct AssistView: View {
     }
 
     private func runGeneration() {
-        // TODO: Use CodeGenerationService to stream code generation based on promptText and save to outputFolder
+        isRunning = true
+        log = ""
+        Task {
+            do {
+                let codeOutput = try await CursorService.shared.generateCode(prompt: promptText)
+                await MainActor.run {
+                    log = codeOutput
+                    isRunning = false
+                }
+            } catch {
+                await MainActor.run {
+                    log = "Error: \(error.localizedDescription)"
+                    isRunning = false
+                }
+            }
+        }
     }
 }
 
