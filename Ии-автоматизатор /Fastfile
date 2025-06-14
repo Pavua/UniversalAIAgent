@@ -1,0 +1,26 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Run snapshot tests"
+  lane :snapshot do
+    snapshot
+  end
+
+  desc "Build and archive for TestFlight"
+  lane :beta do
+    build_app(scheme: "AIHelperiOS", export_method: "app-store")
+    upload_to_testflight
+  end
+
+  desc "Run tests"
+  lane :tests do
+    run_tests(scheme: "AIHelperiOS")
+  end
+end
+
+platform :macos do
+  desc "Build macOS app"
+  lane :build do
+    build_app(scheme: "AIHelperMacOS")
+  end
+end 

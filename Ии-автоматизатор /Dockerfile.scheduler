@@ -1,0 +1,9 @@
+FROM ubuntu:22.04
+
+# Install IceCream scheduler
+RUN apt-get update && \
+    apt-get install -y icecream && \
+    rm -rf /var/lib/apt/lists/*
+
+# Start the scheduler in the foreground
+ENTRYPOINT ["icecream-scheduler", "--daemon", "--no-detach", "--port", "8765"]

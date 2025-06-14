@@ -1,0 +1,10 @@
+disabled_rules:
+  - force_cast
+  - force_try
+  - force_unwrapping
+
+opt_in_rules:
+  - empty_count
+  - first_where
+  - switch_case_on_newline
+  - anyobject_protocol 

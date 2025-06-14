@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install SwiftLint
+        run: brew install swiftlint || true
+      - name: SwiftLint autocorrect
+        run: swiftlint autocorrect --format --quiet
+      - name: Install SwiftFormat
+        run: brew install swiftformat || true
+      - name: Run SwiftFormat
+        run: swiftformat . --quiet
+
+  build:
+    name: Build
+    needs: lint
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        configuration: [debug, release]
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            ~/.swiftpm
+            ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}-dd-${{ hashFiles('**/*.swift') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+            ${{ runner.os }}-dd-
+      - name: Set up Swift
+        uses: fwal/setup-swift@v2
+        with:
+          swift-version: 5.10
+      - name: Build
+        run: swift build --configuration ${{ matrix.configuration }}
+
+  test:
+    name: Test
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        configuration: [debug, release]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Swift
+        uses: fwal/setup-swift@v2
+        with:
+          swift-version: 5.10
+      - name: Test
+        run: swift test --configuration ${{ matrix.configuration }}
+      - name: Install Bundler
+        run: gem install bundler
+      - name: Install Gems
+        run: bundle install --jobs=4 --retry=3
+      - name: Fastlane tests
+        run: bundle exec fastlane tests
+
+  beta:
+    name: Deploy Beta
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Bundler
+        run: gem install bundler
+      - name: Install Gems
+        run: bundle install --jobs=4 --retry=3
+      - name: Fastlane beta
+        run: bundle exec fastlane beta
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          FASTLANE_APP_SPECIFIC_PASSWORD: ${{ secrets.FASTLANE_APP_SPECIFIC_PASSWORD }} 

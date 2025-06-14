@@ -1,0 +1,22 @@
+{
+  "name": "AIHelper Dev Container",
+  "image": "mcr.microsoft.com/devcontainers/swift:latest",
+  "features": {
+    "ghcr.io/devcontainers/features/brew:1": {
+      "packages": ["icecream"]
+    }
+  },
+  "postCreateCommand": "swift build",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "editor.formatOnSave": true
+      },
+      "extensions": [
+        "vknabel.vscode-swift-development-environment",
+        "apple.swift-format",
+        "GitHub.codespaces"
+      ]
+    }
+  }
+} 
