@@ -1,0 +1,33 @@
+name: CI Matrix
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        platform: [macos, ios, watchos]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Swift
+        uses: fwal/setup-swift@v1
+        with:
+          swift-version: '5.10'
+      - name: Build ${{ matrix.platform }}
+        run: |
+          if [ "${{ matrix.platform }}" = "macos" ]; then
+            swift build --configuration release
+          else
+            echo "Placeholder for build of ${{ matrix.platform }}"
+          fi
+      - name: Run Tests
+        run: swift test
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.platform }}-build
+          path: .build/release 
