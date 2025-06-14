@@ -26,7 +26,12 @@ final class HistorySearchService {
             try db.create(virtualTable: "message_fts", using: FTS5()) { t in
                 t.column("content")
             }
-            // TODO: добавить триггеры синхронизации SwiftData → message_fts
+            // Триггер на вставку сообщения
+            try db.execute(sql: "CREATE TRIGGER IF NOT EXISTS message_insert AFTER INSERT ON Message BEGIN INSERT INTO message_fts(rowid, content) VALUES(NEW.id, NEW.content); END;")
+            // Триггер на удаление сообщения
+            try db.execute(sql: "CREATE TRIGGER IF NOT EXISTS message_delete AFTER DELETE ON Message BEGIN DELETE FROM message_fts WHERE rowid = OLD.id; END;")
+            // Триггер на обновление сообщения
+            try db.execute(sql: "CREATE TRIGGER IF NOT EXISTS message_update AFTER UPDATE ON Message BEGIN UPDATE message_fts SET content = NEW.content WHERE rowid = OLD.id; END;")
         }
     }
 
