@@ -1,0 +1,100 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=admin123
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - llm_network
+
+  # LLM контейнер 1 - основной
+  llama32-main:
+    image: ollama/ollama:latest
+    container_name: llama32-main
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    volumes:
+      - llama_data_1:/root/.ollama
+    networks:
+      - llm_network
+
+  # LLM контейнер 2 - для тестов
+  llama32-test:
+    image: ollama/ollama:latest
+    container_name: llama32-test
+    restart: unless-stopped
+    ports:
+      - "11435:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    volumes:
+      - llama_data_2:/root/.ollama
+    networks:
+      - llm_network
+
+  # LLM контейнер 3 - для экспериментов
+  llama32-exp:
+    image: ollama/ollama:latest
+    container_name: llama32-exp
+    restart: unless-stopped
+    ports:
+      - "11436:11434"
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    volumes:
+      - llama_data_3:/root/.ollama
+    networks:
+      - llm_network
+
+  # Redis для кэширования LLM ответов
+  redis:
+    image: redis:alpine
+    container_name: llm_cache
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - llm_network
+
+  # Мониторинг производительности
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: llm_monitoring
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    networks:
+      - llm_network
+
+volumes:
+  n8n_data:
+  llama_data_1:
+  llama_data_2:
+  llama_data_3:
+  redis_data:
+  prometheus_data:
+
+networks:
+  llm_network:
+    driver: bridge 

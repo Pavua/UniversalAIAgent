@@ -1,0 +1,10 @@
+strings:
+  inputs:
+    - userbot/gui/**/*.strings
+  outputs:
+    - templateName: structured-swift5
+      output: userbot/gui/Generated/Strings+SwiftGen.swift
+      params:
+        enumName: L10n
+        publicAccess: true
+ 

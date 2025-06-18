@@ -1,0 +1,80 @@
+default_platform :mac
+
+platform :mac do
+  desc "Build and package DMG app"
+  lane :package do
+    xcodebuild(
+      project: "userbot/gui/Tg_python_llm.xcodeproj",
+      scheme: "Tg_python_llm",
+      configuration: "Release",
+      sdk: "macosx"
+    )
+    sh "brew install create-dmg || true"
+    app_name = "Tg_python_llm"
+    build_path = "#{ENV['PWD']}/build/Release/#{app_name}.app"
+    dmg_path = "#{ENV['PWD']}/build/#{app_name}.dmg"
+    sh "mkdir -p build"
+    sh "create-dmg --volname 'TgPythonLLM' --window-size 800 600 --app-drop-link 600 550 '#{build_path}' '#{dmg_path}'"
+  end
+
+  desc "Notarize DMG file"
+  lane :notarize_dmg do
+    app_path = "#{ENV['PWD']}/build/Tg_python_llm.dmg"
+    username = ENV['FASTLANE_USER'] || ENV['APPLE_ID']
+    password = ENV['FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD'] || ENV['APPLE_APP_SPECIFIC_PASSWORD']
+    
+    if username && password && File.exist?(app_path)
+      notarize(
+        username: username,
+        password: password,
+        package: app_path,
+        bundle_id: "com.example.Tg_python_llm"
+      )
+      stapler(file_path: app_path)
+    else
+      UI.message("Skipping notarization - missing credentials or DMG file")
+    end
+  end
+
+  desc "Upload dSYMs to Crashlytics"
+  lane :upload_dsyms do
+    dsym_path = Actions.lane_context[SharedValues::DSYM_OUTPUT_PATH]
+    if dsym_path && File.exist?(dsym_path)
+      upload_symbols_to_crashlytics(dsym_path: dsym_path)
+    else
+      UI.message("No dSYM found to upload")
+    end
+  end
+
+  desc "Build and upload iOS beta to TestFlight"
+  lane :beta_ios do
+    gym(
+      project: "userbot/gui/Tg_python_llm.xcodeproj",
+      scheme: "Tg_python_llm_iOS",
+      export_method: "app-store",
+      configuration: "Release"
+    )
+    upload_dsyms
+    upload_to_testflight(
+      ipa: Actions.lane_context[SharedValues::IPA_OUTPUT_PATH],
+      skip_waiting_for_build_processing: true,
+      distribute_external: false
+    )
+  end
+
+  desc "Build and upload watchOS beta to TestFlight"
+  lane :beta_watch do
+    gym(
+      project: "userbot/gui/Tg_python_llm.xcodeproj",
+      scheme: "Tg_python_llmWatch",
+      export_method: "app-store",
+      configuration: "Release"
+    )
+    upload_dsyms
+    upload_to_testflight(
+      ipa: Actions.lane_context[SharedValues::IPA_OUTPUT_PATH],
+      skip_waiting_for_build_processing: true,
+      distribute_external: false
+    )
+  end
+end 

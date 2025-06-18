@@ -1,0 +1,19 @@
+// Dangerfile for automated PR checks
+import Danger
+
+let danger = Danger()
+
+// Run SwiftLint
+SwiftLint.lint()
+
+// Run SwiftFormat check
+let swiftFormatIssues = danger.git.modifiedFiles.filter { $0.hasSuffix(".swift") }
+if !swiftFormatIssues.isEmpty {
+    warn("Please run SwiftFormat on modified Swift files.")
+}
+
+// Check for CHANGELOG update on features
+let hasChangelog = danger.git.modifiedFiles.contains { $0 == "CHANGELOG.md" }
+if !hasChangelog && danger.github.pullRequest.title.lowercased().contains("feat") {
+    warn("Feature PR without CHANGELOG update.")
+}

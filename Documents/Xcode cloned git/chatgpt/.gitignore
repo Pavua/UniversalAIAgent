@@ -1,0 +1,35 @@
+# Xcode
+build/
+*.xcodeproj
+*.xcworkspace
+*.xcarchive
+*.xcuserdatad
+DerivedData/
+
+# Swift
+.swiftpm/
+Packages/
+*.swiftdeps
+*.swiftmodule
+
+# macOS
+.DS_Store
+*.orig
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+dist/
+*.egg-info/
+*.egg
+
+# Fastlane
+fastlane/report.xml
+fastlane/test_output/
+
+# Pre-commit
+.cache/ 

@@ -1,0 +1,296 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  python-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Cache pip packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install --upgrade pip
+          pip install -r requirements.txt pytest
+          pip install -e .
+      - name: Run pytest
+        run: |
+          source .venv/bin/activate
+          export PYTHONPATH="$(pwd)"
+          pytest -q userbot/tests
+
+  macos-build:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [arm64, x86_64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Cache DerivedData and SPM
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+            ~/.build
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-xcode-${{ matrix.arch }}-${{ hashFiles('userbot/gui/project.yml') }}
+      - name: Install xcodegen
+        run: |
+          brew install xcodegen | cat
+      - name: Generate Xcode project
+        run: cd userbot/gui && xcodegen generate
+      - name: "Build app (arch: ${{ matrix.arch }})"
+        run: |
+          cd userbot/gui
+          xcodebuild build \
+            -project Tg_python_llm.xcodeproj \
+            -scheme Tg_python_llm \
+            -destination "platform=macOS,arch=${{ matrix.arch }}" \
+            -enable-parallel-testing YES \
+            -parallel-testing-worker-count $(sysctl -n hw.ncpu) \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO | cat
+
+  swift-tests:
+    runs-on: macos-latest
+    needs: macos-build
+    strategy:
+      matrix:
+        arch: [arm64, x86_64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen | cat
+      - name: Generate Xcode project
+        run: cd userbot/gui && xcodegen generate
+      - name: "Run Swift tests (arch: ${{ matrix.arch }})"
+        run: |
+          cd userbot/gui
+          xcodebuild test \
+            -project Tg_python_llm.xcodeproj \
+            -scheme Tg_python_llm \
+            -destination "platform=macOS,arch=${{ matrix.arch }}" \
+            -enable-parallel-testing YES \
+            -parallel-testing-worker-count $(sysctl -n hw.ncpu) \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO | cat
+
+  ios-build:
+    runs-on: macos-latest
+    needs: macos-build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen | cat
+      - name: Generate Xcode project
+        run: cd userbot/gui && xcodegen generate
+      - name: Build iOS App (Simulator)
+        run: |
+          cd userbot/gui
+          xcodebuild build \
+            -project Tg_python_llm.xcodeproj \
+            -scheme Tg_python_llm_iOS \
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,name=iPhone 15" \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO | cat
+
+  watch-build:
+    runs-on: macos-latest
+    needs: macos-build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen | cat
+      - name: Generate Xcode project
+        run: cd userbot/gui && xcodegen generate
+      - name: Build watchOS App (Simulator)
+        run: |
+          cd userbot/gui
+          xcodebuild build \
+            -project Tg_python_llm.xcodeproj \
+            -scheme Tg_python_llmWatch \
+            -sdk watchsimulator \
+            -destination "platform=watchOS Simulator,name=Apple Watch Series 9" \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO | cat
+
+  ios-ui-tests:
+    runs-on: macos-latest
+    needs: ios-build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen | cat
+      - name: Generate Xcode project
+        run: cd userbot/gui && xcodegen generate
+      - name: Run iOS UI tests
+        run: |
+          cd userbot/gui
+          xcodebuild test \
+            -project Tg_python_llm.xcodeproj \
+            -scheme Tg_python_llm_iOS \
+            -enable-parallel-testing YES \
+            -parallel-testing-worker-count $(sysctl -n hw.ncpu) \
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,name=iPhone 15" \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO | cat
+
+  watch-ui-tests:
+    runs-on: macos-latest
+    needs: watch-build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen | cat
+      - name: Generate Xcode project
+        run: cd userbot/gui && xcodegen generate
+      - name: Run watchOS UI tests
+        run: |
+          cd userbot/gui
+          xcodebuild test \
+            -project Tg_python_llm.xcodeproj \
+            -scheme Tg_python_llmWatch \
+            -enable-parallel-testing YES \
+            -parallel-testing-worker-count $(sysctl -n hw.ncpu) \
+            -sdk watchsimulator \
+            -destination "platform=watchOS Simulator,name=Apple Watch Series 9" \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO | cat
+
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: Install pre-commit and tools
+        run: |
+          pip install pre-commit
+          brew install swiftlint swiftformat
+      - name: Run pre-commit checks
+        run: pre-commit run --all-files
+
+  package:
+    runs-on: macos-latest
+    needs: macos-build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Fastlane
+        run: |
+          brew install fastlane
+      - name: Build and package DMG
+        run: |
+          cd userbot/gui
+          fastlane package
+      - name: Notarize DMG
+        run: |
+          fastlane notarize_dmg
+
+  upload-testflight:
+    needs: package
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install Fastlane
+        run: brew install fastlane | cat
+      - name: Generate Xcode project
+        run: cd userbot/gui && xcodegen generate
+      - name: Build and upload iOS beta
+        env:
+          FASTLANE_APPLE_APPLICATION_SPECIFIC_PASSWORD: ${{ secrets.APP_SPECIFIC_PASSWORD }}
+          FASTLANE_SESSION: ${{ secrets.FASTLANE_SESSION }}
+          FASTLANE_USER: ${{ secrets.APPLE_ID }}
+          FASTLANE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MATCH_KEYCHAIN_NAME: build.keychain
+          MATCH_KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: cd userbot/gui && fastlane beta_ios
+
+  widget-build:
+    runs-on: macos-latest
+    needs: ios-build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen | cat
+      - name: Generate Xcode project
+        run: cd userbot/gui && xcodegen generate
+      - name: Build Widget Extension
+        run: |
+          cd userbot/gui
+          xcodebuild build \
+            -project Tg_python_llm.xcodeproj \
+            -scheme Tg_python_llmWidget \
+            -sdk iphonesimulator \
+            -destination "platform=iOS Simulator,name=iPhone 15" \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO | cat
+
+  complication-build:
+    runs-on: macos-latest
+    needs: watch-build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen | cat
+      - name: Generate Xcode project
+        run: cd userbot/gui && xcodegen generate
+      - name: Build WatchOS Complication Extension
+        run: |
+          cd userbot/gui
+          xcodebuild build \
+            -project Tg_python_llm.xcodeproj \
+            -scheme Tg_python_llmWatchComplication \
+            -sdk watchsimulator \
+            -destination "platform=watchOS Simulator,name=Apple Watch Series 9" \
+            CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO | cat
+
+  notify:
+    needs: [python-tests, macos-build, swift-tests, ios-build, watch-build, ios-ui-tests, watch-ui-tests, pre-commit, package, upload-testflight, widget-build, complication-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          curl -s -X POST https://api.telegram.org/bot${BOT_TOKEN}/sendMessage \
+            -d chat_id=${CHAT_ID} \
+            -d text="CI pipeline завершился со статусом ${{ job.status }} на ${{ github.ref }}"
+      - name: Send email notification
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port: ${{ secrets.SMTP_PORT }}
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "CI build ${{ job.status }} - ${{ github.workflow }}"
+          to: pavelr7@gmail.com
+          from: ${{ secrets.SMTP_USERNAME }}
+          body: |
+            CI pipeline status: ${{ job.status }}
+            Repository: ${{ github.repository }}
+            Workflow: ${{ github.workflow }}
+            Run: #${{ github.run_number }}

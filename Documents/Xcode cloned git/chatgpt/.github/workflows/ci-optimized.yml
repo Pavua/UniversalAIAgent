@@ -1,0 +1,50 @@
+  macos-build:
+    name: SwiftUI Build
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Setup Homebrew
+        run: |
+          brew update
+          brew install xcodegen
+      - name: Cache XcodeGen Pods and DerivedData
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-xcode-${{ hashFiles('userbot/gui/project.yml') }}
+      - name: Generate Xcode project
+        run: |
+          cd userbot/gui
+          xcodegen generate
+      - name: Build with limited concurrency (arm64)
+        run: |
+          cd userbot/gui
+          xcodebuild build \
+            -project Tg_python_llm.xcodeproj \
+            -scheme Tg_python_llm \
+            -destination 'platform=macOS,arch=arm64' \
+            OTHER_SWIFT_FLAGS='-Xfrontend -j4' \
+            -allowProvisioningUpdates
+
+  notify:
+    name: Notify
+    needs: [python-tests, macos-build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Telegram notification
+        uses: appleboy/telegram-action@v0.1.0
+        with:
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          to: '@p0lrd'
+          message: 'CI build ${{ github.workflow }} #${{ github.run_number }} ${{ job.status }}'
+      - name: Email notification
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: 'CI build ${{ github.workflow }} #${{ github.run_number }} ${{ job.status }}'
+          to: pavelr7@gmail.com
+          body: 'CI build ${{ github.workflow }} #${{ github.run_number }} ${{ job.status }} completed.'

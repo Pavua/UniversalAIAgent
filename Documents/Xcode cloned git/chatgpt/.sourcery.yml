@@ -1,0 +1,9 @@
+# Sourcery configuration
+sources:
+  - userbot/gui/Sources
+# Add other source paths if needed
+templates:
+  - userbot/gui/Templates
+# Define output directory for generated code
+output:
+  userbot/gui/Generated/Sourcery
